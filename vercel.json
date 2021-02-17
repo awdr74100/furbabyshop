@@ -1,0 +1,15 @@
+{
+  "version": 2,
+  "env": {
+    "ON_VERCEL": "true"
+  },
+  "builds": [
+    {
+      "src": "nuxt.config.js",
+      "use": "@nuxtjs/vercel-builder",
+      "config": {
+        "serverFiles": ["server/**"]
+      }
+    }
+  ]
+}
