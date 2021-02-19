@@ -1,7 +1,7 @@
 import express from 'express';
-import { body, validationResult } from 'express-validator';
 import { hash, verify, argon2id } from 'argon2';
 import { verify as jwtVerify } from 'jsonwebtoken';
+import { signUpValidate, signInValidate } from '../../utils/validateData';
 import User from '../../models/User';
 import {
   generateAccessToken,
@@ -16,101 +16,90 @@ import {
 const router = express.Router();
 
 /* Sign Up */
-router.post(
-  '/signup',
-  body('username').isString().isLength({ min: 6, max: 14 }).isAlphanumeric(),
-  body('email').isEmail(),
-  body('password').isString().isLength({ min: 6, max: 14 }),
-  async (req, res) => {
-    // check body
-    const errs = validationResult(req);
-    if (!errs.isEmpty()) return res.status(400).send({ errors: errs.array() }); // invalid field value
-    const { username, email, password } = req.body;
-    try {
-      // generate photo url
-      const prefix = username.slice(0, 1).toLocaleUpperCase();
-      const photoUrl = `https://fakeimg.pl/96x96/282828/fff/?text=${prefix}&font_size=48&font=noto`;
-      // hash password
-      const hashPassword = await hash(password, { type: argon2id });
-      // set user
-      const user = new User({
-        displayName: '',
-        username,
-        email,
-        password: hashPassword,
-        photoUrl,
-        draws: 3,
-        role: 'user',
-        tokenVersion: 0,
-        providers: ['custom'],
-      });
-      // save user
-      await user.save();
-      // end
-      return res.send({ success: true, message: '註冊成功' });
-    } catch (error) {
-      if (error.errors && error.errors.username) {
-        const { kind, message } = error.errors.username;
-        if (kind === 'unique')
-          return res.send({ success: false, message: '用戶名已存在' }); // username already exist
-        return res.send({ success: false, error: message }); // other error
-      }
-      if (error.errors && error.errors.email) {
-        const { kind, message } = error.errors.email;
-        if (kind === 'unique')
-          return res.send({ success: false, message: '信箱已被使用' }); // email already exist
-        return res.send({ success: false, error: message }); // other error
-      }
-      return res.status(500).send({ success: false, message: error.message }); // unknown error
-    }
-  },
-);
+router.post('/signup', async (req, res) => {
+  try {
+    // validate req.body
+    const { username, email, password } = await signUpValidate(req.body);
+    // generate photo url
+    const prefix = username.slice(0, 1).toLocaleUpperCase();
+    const photoUrl = `https://fakeimg.pl/96x96/282828/fff/?text=${prefix}&font_size=48&font=noto`;
+    // hash password
+    const hashPassword = await hash(password, { type: argon2id });
+    // set user
+    const user = new User({
+      displayName: '',
+      username,
+      email,
+      password: hashPassword,
+      photoUrl,
+      draws: 3,
+      role: 'user',
+      tokenVersion: 0,
+      providers: ['custom'],
+    });
+    // save user
+    await user.save();
+    // end
+    return res.send({ success: true, message: '註冊成功' });
+  } catch (error) {
+    if (error.name === 'ValidationError' && error.details)
+      return res.status(400).send({ success: false, message: error.message }); // invalid field value
+    if (
+      error.errors &&
+      error.errors.username &&
+      error.errors.username.kind === 'unique'
+    )
+      return res.send({ success: false, message: '用戶名已存在' }); // username already exist
+    if (
+      error.errors &&
+      error.errors.email &&
+      error.errors.email.kind === 'unique'
+    )
+      return res.send({ success: false, message: '信箱已被使用' }); // email already exist
+    return res.status(500).send({ success: false, message: error.message }); // unknown error
+  }
+});
 
 /* Sign In */
-router.post(
-  '/signin',
-  body('usernameOrEmail').isString().isLength({ min: 1 }),
-  body('password').isString().isLength({ min: 1 }),
-  async (req, res) => {
-    // check body
-    const errs = validationResult(req);
-    if (!errs.isEmpty()) return res.status(400).send({ errors: errs.array() }); // invalid field value
-    const { usernameOrEmail, password } = req.body;
-    try {
-      // find user
-      const findKey = usernameOrEmail.includes('@') ? 'email' : 'username';
-      const user = await User.findOne({ [`${findKey}`]: usernameOrEmail });
-      if (!user) throw new Error('custom/USER_NOT_FOUND');
-      // check role
-      if (user.role !== 'user') throw new Error('custom/INVALID_ROLE');
-      // verify password
-      const validPassword = await verify(user.password, password);
-      if (!validPassword) throw new Error('custom/INVALID_PASSWORD');
-      // send tokens (access, refresh)
-      sendAccessToken(res, generateAccessToken(user, '15m'));
-      sendRefreshToken(res, generateRefreshToken(user, '4h'), user.role);
-      // end
-      return res.send({
-        success: true,
-        user: {
-          displayName: user.displayName,
-          username: user.username,
-          email: user.email,
-          photoUrl: user.photoUrl,
-          role: user.role,
-        },
-      });
-    } catch (error) {
-      if (error.message === 'custom/USER_NOT_FOUND')
-        return res.send({ success: false, message: '帳號或密碼錯誤' }); // user not found
-      if (error.message === 'custom/INVALID_ROLE')
-        return res.send({ success: false, message: '帳號或密碼錯誤' }); // invalid role
-      if (error.message === 'custom/INVALID_PASSWORD')
-        return res.send({ success: false, message: '帳號或密碼錯誤' }); // invalid password
-      return res.status(500).send({ success: false, message: error.message }); // unknown error
-    }
-  },
-);
+router.post('/signin', async (req, res) => {
+  try {
+    // validate req.body
+    const { usernameOrEmail, password } = await signInValidate(req.body);
+    // find user
+    const findKey = usernameOrEmail.includes('@') ? 'email' : 'username';
+    const user = await User.findOne({ [`${findKey}`]: usernameOrEmail });
+    if (!user) throw new Error('custom/USER_NOT_FOUND');
+    // check role
+    if (user.role !== 'user') throw new Error('custom/INVALID_ROLE');
+    // verify password
+    const validPassword = await verify(user.password, password);
+    if (!validPassword) throw new Error('custom/INVALID_PASSWORD');
+    // send tokens (access, refresh)
+    sendAccessToken(res, generateAccessToken(user, '15m'));
+    sendRefreshToken(res, generateRefreshToken(user, '4h'), user.role);
+    // end
+    return res.send({
+      success: true,
+      user: {
+        displayName: user.displayName,
+        username: user.username,
+        email: user.email,
+        photoUrl: user.photoUrl,
+        role: user.role,
+      },
+    });
+  } catch (error) {
+    if (error.name === 'ValidationError' && error.details)
+      return res.status(400).send({ success: false, message: error.message }); // invalid field value
+    if (error.message === 'custom/USER_NOT_FOUND')
+      return res.send({ success: false, message: '帳號或密碼錯誤' }); // user not found
+    if (error.message === 'custom/INVALID_ROLE')
+      return res.send({ success: false, message: '帳號或密碼錯誤' }); // invalid role
+    if (error.message === 'custom/INVALID_PASSWORD')
+      return res.send({ success: false, message: '帳號或密碼錯誤' }); // invalid password
+    return res.status(500).send({ success: false, message: error.message }); // unknown error
+  }
+});
 
 /* Sign Out */
 router.post('/signout', async (req, res) => {
