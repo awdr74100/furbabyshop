@@ -1,6 +1,6 @@
 import express from 'express';
-import { hash, verify, argon2id } from 'argon2';
-import { verify as jwtVerify } from 'jsonwebtoken';
+import argon2 from 'argon2';
+import { verify } from 'jsonwebtoken';
 import { signUpValidate, signInValidate } from '../../utils/validateData';
 import User from '../../models/User';
 import {
@@ -24,7 +24,7 @@ router.post('/signup', async (req, res) => {
     const prefix = username.slice(0, 1).toLocaleUpperCase();
     const photoUrl = `https://fakeimg.pl/96x96/282828/fff/?text=${prefix}&font_size=48&font=noto`;
     // hash password
-    const hashPassword = await hash(password, { type: argon2id });
+    const hashPassword = await argon2.hash(password, { type: argon2.argon2id });
     // set user
     const user = new User({
       displayName: '',
@@ -72,7 +72,7 @@ router.post('/signin', async (req, res) => {
     // check role
     if (user.role !== 'user') throw new Error('custom/INVALID_ROLE');
     // verify password
-    const validPassword = await verify(user.password, password);
+    const validPassword = await argon2.verify(user.password, password);
     if (!validPassword) throw new Error('custom/INVALID_PASSWORD');
     // send tokens (access, refresh)
     sendAccessToken(res, generateAccessToken(user, '15m'));
@@ -106,10 +106,7 @@ router.post('/signout', async (req, res) => {
   const { accessToken } = req.cookies;
   try {
     // verify access token
-    const { id, role } = jwtVerify(
-      accessToken,
-      process.env.ACCESS_TOKEN_SECRET,
-    );
+    const { id, role } = verify(accessToken, process.env.ACCESS_TOKEN_SECRET);
     // check role
     if (role !== 'user') throw new Error('custom/INVALID_ROLE');
     // check user
@@ -135,7 +132,7 @@ router.post('/refresh_token', async (req, res) => {
   const { refreshToken } = req.cookies;
   try {
     // verify refresh token
-    const { id, role, tokenVersion } = jwtVerify(
+    const { id, role, tokenVersion } = verify(
       refreshToken,
       process.env.REFRESH_TOKEN_SECRET,
     );
