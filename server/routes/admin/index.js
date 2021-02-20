@@ -1,7 +1,7 @@
 import express from 'express';
 import argon2 from 'argon2';
 import { verify } from 'jsonwebtoken';
-import { signUpValidate, signInValidate } from '../../utils/validateData';
+import { signUpValidate, signInValidate } from '../../utils/validate';
 import User from '../../models/User';
 import {
   generateAccessToken,
