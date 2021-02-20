@@ -1,80 +1,101 @@
 import express from 'express';
-import mongoose from 'mongoose';
 import { google } from 'googleapis';
+import argon2 from 'argon2';
+import { randomBytes } from 'crypto';
+import { stringify } from 'qs';
 import User from './models/User';
+import {
+  generateAccessToken,
+  generateRefreshToken,
+} from './utils/generateToken';
+import { sendAccessToken, sendRefreshToken } from './utils/sendToken';
 
 const app = express();
-
-mongoose.connect(process.env.DATABASE_URL, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-  useFindAndModify: false,
-  useCreateIndex: true,
-});
-
-const googleOAuthClient = new google.auth.OAuth2(
-  process.env.GCP_CLIENT_ID,
-  process.env.GCP_CLIENT_SECRET,
-  `${process.env.BASE_URL}/oauth/google`,
-);
 
 /* Redirect OAuth Server */
 app.get('/', (req, res) => {
   const { referer } = req.headers;
   const { provider } = req.query;
-  // set redirect url;
-  let url = referer || '/';
   // google oauth
-  if (provider === 'google' && referer) {
-    url = googleOAuthClient.generateAuthUrl({
+  if (provider === 'google') {
+    const oauthClient = new google.auth.OAuth2(
+      process.env.GCP_CLIENT_ID,
+      process.env.GCP_CLIENT_SECRET,
+      `${process.env.BASE_URL}/oauth/google`,
+    );
+    const url = oauthClient.generateAuthUrl({
       scope: 'email profile',
-      state: referer,
+      state: referer || process.env.BASE_URL,
     });
+    return res.redirect(url);
   }
-  return res.redirect(url);
+  return res.redirect('/');
 });
 
 /* Google OAuth */
 app.get('/google', async (req, res) => {
   const { state, code } = req.query;
-  if (!state || !code) return res.sendStatus(401);
+  const oauthClient = new google.auth.OAuth2(
+    process.env.GCP_CLIENT_ID,
+    process.env.GCP_CLIENT_SECRET,
+    `${process.env.BASE_URL}/oauth/google`,
+  );
   try {
     // exchange authorization code for tokens
-    const { tokens } = await googleOAuthClient.getToken(code);
+    const { tokens } = await oauthClient.getToken(code);
     // setCredentials
-    googleOAuthClient.setCredentials(tokens);
-    // get user info
+    oauthClient.setCredentials(tokens);
+    // get info
     const oauth2 = google.oauth2('v2');
-    const { data } = await oauth2.userinfo.get({ auth: googleOAuthClient });
+    const { data } = await oauth2.userinfo.get({ auth: oauthClient });
     const { id, email, name, picture } = data;
     // find user
     let user = await User.findOne({ email });
-    // save or update user
+    // save user
     if (!user) {
-      user = new User({
+      const random = randomBytes(7).toString('hex');
+      const hashPassword = await argon2.hash(random, { type: argon2.argon2id });
+      user = await new User({
         displayName: name,
         username: id,
         email,
-        password: 'empty',
+        password: hashPassword,
         photoUrl: picture,
         draws: 3,
         role: 'user',
         tokenVersion: 0,
-        providers: ['google'],
-      });
-    } else if (!user.providers.includes('google')) {
+        oauthProviders: ['google'],
+      }).save();
+    }
+    // update user
+    if (!user.oauthProviders.includes('google')) {
       await User.updateOne(
         { _id: user.id },
         {
           displayName: name,
           photoUrl: picture,
-          providers: [...user.providers, 'google'],
+          oauthProviders: [...user.oauthProviders, 'google'],
         },
       );
+      user.displayName = name;
+      user.photoUrl = picture;
+      user.oauthProviders = [...user.oauthProviders, 'google'];
     }
-    return res.redirect(state);
+    // send tokens (access, refresh)
+    sendAccessToken(res, generateAccessToken(user, '15m'));
+    sendRefreshToken(res, generateRefreshToken(user, '4h'), user.role);
+    // end
+    return res.redirect(
+      `${state}?${stringify({
+        displayName: user.displayName,
+        username: user.username,
+        email: user.email,
+        photoUrl: user.photoUrl,
+        role: user.role,
+      })}`,
+    );
   } catch (error) {
-    return res.redirect('/');
+    return res.status(400).send({ success: false, message: error.message });
   }
 });
 
