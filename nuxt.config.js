@@ -36,7 +36,10 @@ export default {
 
   server: { port: 9000 },
 
-  serverMiddleware: [{ path: '/api', handler: '@/server/index.js' }],
+  serverMiddleware: [
+    { path: '/api', handler: '@/server/index.js' },
+    { path: '/oauth', handler: '@/server/oauth.js' },
+  ],
 
   /* --- custom --- */
 
