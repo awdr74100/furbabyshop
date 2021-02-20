@@ -35,7 +35,7 @@ router.post('/signup', async (req, res) => {
       draws: 0,
       role: 'admin',
       tokenVersion: 0,
-      providers: ['custom'],
+      oauthProviders: [],
     });
     // save user
     await user.save();

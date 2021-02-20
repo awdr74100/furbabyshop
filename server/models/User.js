@@ -11,8 +11,6 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true,
       unique: true,
-      minLength: 6,
-      maxLength: 14,
     },
     email: {
       type: String,
@@ -42,9 +40,9 @@ const userSchema = new mongoose.Schema(
       min: 0,
       default: 0,
     },
-    providers: {
+    oauthProviders: {
       type: Array,
-      default: ['custom'],
+      default: [],
     },
   },
   { timestamps: true },
