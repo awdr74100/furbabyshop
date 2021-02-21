@@ -64,12 +64,8 @@ app.get('/google', async (req, res) => {
         accounts: [provider],
       }).save();
     }
-    // find account
-    const account = user
-      .toJSON()
-      .accounts.find(({ kind }) => kind === 'google');
-    // connect account
-    if (!account) {
+    // connect user
+    if (!user.toJSON().accounts.find(({ kind }) => kind === 'google')) {
       const accounts = [...user.toJSON().accounts, provider];
       await User.updateOne({ _id: user.id }, { accounts });
       user.accounts = accounts;
