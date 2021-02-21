@@ -3,27 +3,10 @@ import uniqueValidator from 'mongoose-unique-validator';
 
 const userSchema = new mongoose.Schema(
   {
-    displayName: {
-      type: String,
-      default: '',
-    },
-    username: {
-      type: String,
-      required: true,
-      unique: true,
-    },
     email: {
       type: String,
       required: true,
       unique: true,
-    },
-    password: {
-      type: String,
-      required: true,
-    },
-    photoUrl: {
-      type: String,
-      default: '',
     },
     draws: {
       type: Number,
@@ -40,10 +23,32 @@ const userSchema = new mongoose.Schema(
       min: 0,
       default: 0,
     },
-    oauthProviders: {
-      type: Array,
-      default: [],
-    },
+    accounts: [
+      {
+        _id: false,
+        kind: {
+          type: String,
+          required: true,
+        },
+        uid: {
+          type: String,
+        },
+        displayName: {
+          type: String,
+        },
+        photo: {
+          type: String,
+          required: true,
+        },
+        username: {
+          type: String,
+          unique: true,
+        },
+        password: {
+          type: String,
+        },
+      },
+    ],
   },
   { timestamps: true },
 );

@@ -20,22 +20,18 @@ router.post('/signup', async (req, res) => {
   try {
     // validate req.body
     const { username, email, password } = await signUpValidate(req.body);
-    // generate photo url
+    // generate photo
     const prefix = username.slice(0, 1).toLocaleUpperCase();
-    const photoUrl = `https://fakeimg.pl/96x96/282828/fff/?text=${prefix}&font_size=48&font=noto`;
+    const photo = `https://fakeimg.pl/96x96/282828/fff/?text=${prefix}&font_size=48&font=noto`;
     // hash password
     const hashPassword = await argon2.hash(password, { type: argon2.argon2id });
     // set user
     const user = new User({
-      displayName: '',
-      username,
       email,
-      password: hashPassword,
-      photoUrl,
       draws: 0,
       role: 'admin',
       tokenVersion: 0,
-      oauthProviders: [],
+      accounts: [{ kind: 'custom', photo, username, password: hashPassword }],
     });
     // save user
     await user.save();
@@ -46,8 +42,8 @@ router.post('/signup', async (req, res) => {
       return res.status(400).send({ success: false, message: error.message }); // invalid field value
     if (
       error.errors &&
-      error.errors.username &&
-      error.errors.username.kind === 'unique'
+      error.errors['accounts.0.username'] &&
+      error.errors['accounts.0.username'].kind === 'unique'
     )
       return res.send({ success: false, message: '用戶名已存在' }); // username already exist
     if (
@@ -66,26 +62,36 @@ router.post('/signin', async (req, res) => {
     // validate req.body
     const { usernameOrEmail, password } = await signInValidate(req.body);
     // find user
-    const findKey = usernameOrEmail.includes('@') ? 'email' : 'username';
-    const user = await User.findOne({ [`${findKey}`]: usernameOrEmail });
+    const key = usernameOrEmail.includes('@') ? 'email' : 'accounts.username';
+    const user = await User.findOne({ [key]: usernameOrEmail });
+    // check user
     if (!user) throw new Error('custom/USER_NOT_FOUND');
     // check role
     if (user.role !== 'admin') throw new Error('custom/INVALID_ROLE');
+    // check account
+    const account = user.accounts.find(({ kind }) => kind === 'custom');
+    if (!account) throw new Error('custom/ACCOUNT_NOT_FOUND');
     // verify password
-    const validPassword = await argon2.verify(user.password, password);
-    if (!validPassword) throw new Error('custom/INVALID_PASSWORD');
+    const verifyResult = await argon2.verify(account.password, password);
+    if (!verifyResult) throw new Error('custom/INVALID_PASSWORD');
     // send tokens (access, refresh)
     sendAccessToken(res, generateAccessToken(user, '15m'));
     sendRefreshToken(res, generateRefreshToken(user, '4h'), user.role);
+    // remove sensitive data
+    const filterAccounts = user.toJSON().accounts.map((_account) => {
+      const cacheAccount = _account;
+      delete cacheAccount.password;
+      return cacheAccount;
+    });
     // end
     return res.send({
       success: true,
       user: {
-        displayName: user.displayName,
-        username: user.username,
         email: user.email,
         photoUrl: user.photoUrl,
+        draws: user.draws,
         role: user.role,
+        accounts: filterAccounts,
       },
     });
   } catch (error) {
@@ -95,6 +101,8 @@ router.post('/signin', async (req, res) => {
       return res.send({ success: false, message: '帳號或密碼錯誤' }); // user not found
     if (error.message === 'custom/INVALID_ROLE')
       return res.send({ success: false, message: '帳號或密碼錯誤' }); // invalid role
+    if (error.message === 'custom/ACCOUNT_NOT_FOUND')
+      return res.send({ success: false, message: '帳號或密碼錯誤' }); // account not found
     if (error.message === 'custom/INVALID_PASSWORD')
       return res.send({ success: false, message: '帳號或密碼錯誤' }); // invalid password
     return res.status(500).send({ success: false, message: error.message }); // unknown error
@@ -109,8 +117,9 @@ router.post('/signout', async (req, res) => {
     const { id, role } = verify(accessToken, process.env.ACCESS_TOKEN_SECRET);
     // check role
     if (role !== 'admin') throw new Error('custom/INVALID_ROLE');
-    // check user
+    // find user
     const user = await User.findById(id);
+    // check user
     if (!user) throw new Error('custom/ACCOUNT_HAS_BEEN_REVOKED');
     // update token version (revoke refresh token)
     user.tokenVersion += 1;
@@ -138,8 +147,9 @@ router.post('/refresh_token', async (req, res) => {
     );
     // check role
     if (role !== 'admin') throw new Error('custom/INVALID_ROLE');
-    // check user
+    // find user
     const user = await User.findById(id);
+    // check user
     if (!user) throw new Error('custom/ACCOUNT_HAS_BEEN_REVOKED');
     // check token version
     if (user.tokenVersion !== tokenVersion) {
@@ -151,15 +161,21 @@ router.post('/refresh_token', async (req, res) => {
     // send tokens (access, refresh)
     sendAccessToken(res, generateAccessToken(user, '15m'));
     sendRefreshToken(res, generateRefreshToken(user, '4h'), user.role);
+    // remove sensitive data
+    const filterAccounts = user.toJSON().accounts.map((_account) => {
+      const cacheAccount = _account;
+      delete cacheAccount.password;
+      return cacheAccount;
+    });
     // end
     return res.send({
       success: true,
       user: {
-        displayName: user.displayName,
-        username: user.username,
         email: user.email,
         photoUrl: user.photoUrl,
+        draws: user.draws,
         role: user.role,
+        accounts: filterAccounts,
       },
     });
   } catch (error) {
