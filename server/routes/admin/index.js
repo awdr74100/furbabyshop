@@ -112,7 +112,7 @@ router.post('/signout', async (req, res) => {
     // check user
     const user = await User.findById(id);
     if (!user) throw new Error('custom/ACCOUNT_HAS_BEEN_REVOKED');
-    // update token version
+    // update token version (revoke refresh token)
     user.tokenVersion += 1;
     await User.updateOne({ _id: user.id }, { tokenVersion: user.tokenVersion });
     // send tokens (clear)
@@ -145,7 +145,7 @@ router.post('/refresh_token', async (req, res) => {
     if (user.tokenVersion !== tokenVersion) {
       throw new Error('custom/TOKEN_HAS_BEEN_REVOKED');
     }
-    // update token version
+    // update token version (revoke refresh token)
     user.tokenVersion += 1;
     await User.updateOne({ _id: user.id }, { tokenVersion: user.tokenVersion });
     // send tokens (access, refresh)
