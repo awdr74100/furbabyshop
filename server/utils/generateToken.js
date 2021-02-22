@@ -3,7 +3,7 @@ import { sign } from 'jsonwebtoken';
 export const generateAccessToken = (payload, expiresIn) => {
   return sign(
     {
-      id: payload.id,
+      id: payload.id || payload._id.toString(),
       role: payload.role,
     },
     process.env.ACCESS_TOKEN_SECRET,
@@ -14,7 +14,7 @@ export const generateAccessToken = (payload, expiresIn) => {
 export const generateRefreshToken = (payload, expiresIn) => {
   return sign(
     {
-      id: payload.id,
+      id: payload.id || payload._id.toString(),
       role: payload.role,
       tokenVersion: payload.tokenVersion,
     },

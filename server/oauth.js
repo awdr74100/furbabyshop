@@ -42,42 +42,47 @@ app.get('/google', async (req, res) => {
     // setCredentials (access token)
     GoogleOAuthClient.setCredentials(tokens);
     // get info
-    const oauth2 = google.oauth2('v2');
-    const { data } = await oauth2.userinfo.get({ auth: GoogleOAuthClient });
-    const { id, email, name, picture } = data;
-    // set oauth provider
-    const provider = {
+    const {
+      data: { id, email, name, picture },
+    } = await google.oauth2('v2').userinfo.get({ auth: GoogleOAuthClient });
+    // set provider
+    const googleProvider = {
       kind: 'google',
       uid: id,
       photo: picture,
       displayName: name,
     };
     // find user
-    let user = await User.findOne({ email });
+    let user = await User.findOne({ email }).lean();
     // save user
     if (!user) {
-      user = await new User({
+      const newUser = await new User({
         email,
         draws: 3,
         role: 'user',
         tokenVersion: 0,
-        accounts: [provider],
+        accounts: [googleProvider],
       }).save();
+      user = newUser.toObject();
     }
-    // connect user
-    if (!user.toJSON().accounts.find(({ kind }) => kind === 'google')) {
-      const accounts = [...user.toJSON().accounts, provider];
-      await User.updateOne({ _id: user.id }, { accounts });
-      user.accounts = accounts;
+    // find account
+    const googleAccount = user.accounts.find(({ kind }) => kind === 'google');
+    // connect account
+    if (!googleAccount) {
+      await User.updateOne(
+        { _id: user._id },
+        { accounts: [...user.accounts, googleProvider] },
+      );
+      user.accounts = [...user.accounts, googleProvider];
     }
     // send tokens (access, refresh)
     sendAccessToken(res, generateAccessToken(user, '15m'));
     sendRefreshToken(res, generateRefreshToken(user, '4h'), user.role);
     // remove sensitive data
-    const filterAccounts = user.toJSON().accounts.map((_account) => {
-      const cacheAccount = _account;
-      delete cacheAccount.password;
-      return cacheAccount;
+    const filterAccounts = user.accounts.map((account) => {
+      const cache = account;
+      delete cache.password;
+      return cache;
     });
     // end
     return res.redirect(

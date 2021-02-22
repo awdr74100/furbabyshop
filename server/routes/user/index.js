@@ -63,25 +63,25 @@ router.post('/signin', async (req, res) => {
     const { usernameOrEmail, password } = await signInValidate(req.body);
     // find user
     const key = usernameOrEmail.includes('@') ? 'email' : 'accounts.username';
-    const user = await User.findOne({ [key]: usernameOrEmail });
+    const user = await User.findOne({ [key]: usernameOrEmail }).lean();
     // check user
     if (!user) throw new Error('custom/USER_NOT_FOUND');
     // check role
     if (user.role !== 'user') throw new Error('custom/INVALID_ROLE');
     // check account
-    const account = user.accounts.find(({ kind }) => kind === 'custom');
-    if (!account) throw new Error('custom/ACCOUNT_NOT_FOUND');
+    const customAccount = user.accounts.find(({ kind }) => kind === 'custom');
+    if (!customAccount) throw new Error('custom/ACCOUNT_NOT_FOUND');
     // verify password
-    const verifyResult = await argon2.verify(account.password, password);
+    const verifyResult = await argon2.verify(customAccount.password, password);
     if (!verifyResult) throw new Error('custom/INVALID_PASSWORD');
     // send tokens (access, refresh)
     sendAccessToken(res, generateAccessToken(user, '15m'));
     sendRefreshToken(res, generateRefreshToken(user, '4h'), user.role);
     // remove sensitive data
-    const filterAccounts = user.toJSON().accounts.map((_account) => {
-      const cacheAccount = _account;
-      delete cacheAccount.password;
-      return cacheAccount;
+    const filterAccounts = user.accounts.map((account) => {
+      const cache = account;
+      delete cache.password;
+      return cache;
     });
     // end
     return res.send({
@@ -118,12 +118,15 @@ router.post('/signout', async (req, res) => {
     // check role
     if (role !== 'user') throw new Error('custom/INVALID_ROLE');
     // find user
-    const user = await User.findById(id);
+    const user = await User.findById(id).lean();
     // check user
     if (!user) throw new Error('custom/ACCOUNT_HAS_BEEN_REVOKED');
-    // update token version (revoke refresh token)
+    // update token version (for revoke refresh token)
     user.tokenVersion += 1;
-    await User.updateOne({ _id: user.id }, { tokenVersion: user.tokenVersion });
+    await User.updateOne(
+      { _id: user._id },
+      { tokenVersion: user.tokenVersion },
+    );
     // send tokens (clear)
     sendClearTokens(res, 'user');
     // end
@@ -148,24 +151,27 @@ router.post('/refresh_token', async (req, res) => {
     // check role
     if (role !== 'user') throw new Error('custom/INVALID_ROLE');
     // find user
-    const user = await User.findById(id);
+    const user = await User.findById(id).lean();
     // check user
     if (!user) throw new Error('custom/ACCOUNT_HAS_BEEN_REVOKED');
     // check token version
     if (user.tokenVersion !== tokenVersion) {
       throw new Error('custom/TOKEN_HAS_BEEN_REVOKED');
     }
-    // update token version (revoke refresh token)
+    // update token version (for revoke refresh token)
     user.tokenVersion += 1;
-    await User.updateOne({ _id: user.id }, { tokenVersion: user.tokenVersion });
+    await User.updateOne(
+      { _id: user._id },
+      { tokenVersion: user.tokenVersion },
+    );
     // send tokens (access, refresh)
     sendAccessToken(res, generateAccessToken(user, '15m'));
     sendRefreshToken(res, generateRefreshToken(user, '4h'), user.role);
     // remove sensitive data
-    const filterAccounts = user.toJSON().accounts.map((_account) => {
-      const cacheAccount = _account;
-      delete cacheAccount.password;
-      return cacheAccount;
+    const filterAccounts = user.accounts.map((account) => {
+      const cache = account;
+      delete cache.password;
+      return cache;
     });
     // end
     return res.send({
