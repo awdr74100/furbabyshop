@@ -9,7 +9,6 @@ module.exports = {
     'plugin:vue/recommended',
     'airbnb-base',
     'plugin:prettier/recommended',
-    'prettier/vue',
     'plugin:nuxt/recommended',
   ],
   settings: {
