@@ -10,41 +10,38 @@ import { sendAccessToken, sendRefreshToken } from './utils/sendToken';
 
 const app = express();
 
-/* Google OAuth Config */
+/* Google Config */
 const GoogleOAuthClient = new google.auth.OAuth2(
   process.env.GCP_CLIENT_ID,
   process.env.GCP_CLIENT_SECRET,
-  `${process.env.BASE_URL}/oauth/google`,
+  `${process.env.BASE_URL}/oauth/google/callback`,
 );
-
-/* Redirect OAuth Server */
-app.get('/', (req, res) => {
-  const { referer } = req.headers;
-  const { provider } = req.query;
-  // google oauth
-  if (provider === 'google') {
-    const url = GoogleOAuthClient.generateAuthUrl({
-      scope: 'email profile',
-      state: referer || process.env.BASE_URL,
-    });
-    return res.redirect(url);
-  }
-  return res.redirect('/');
-});
+google.options({ auth: GoogleOAuthClient });
 
 /* Google OAuth */
-app.get('/google', async (req, res) => {
+app.get('/google', (req, res) => {
+  const { referer } = req.headers;
+  if (!referer) return res.redirect('/');
+  const url = GoogleOAuthClient.generateAuthUrl({
+    scope: 'email profile',
+    state: referer,
+  });
+  return res.redirect(url);
+});
+
+/* Google OAuth Redirect */
+app.get('/google/callback', async (req, res) => {
   const { state, code } = req.query;
-  if (!state || !code) return res.sendStatus(401);
+  if (!state || !code) return res.redirect('/');
+  const referer = state.includes('?') ? `${state}&` : `${state}?`;
   try {
     // exchange authorization code for tokens
     const { tokens } = await GoogleOAuthClient.getToken(code);
-    // setCredentials (access token)
+    // setCredentials
     GoogleOAuthClient.setCredentials(tokens);
-    // get info
-    const {
-      data: { id, email, name, picture },
-    } = await google.oauth2('v2').userinfo.get({ auth: GoogleOAuthClient });
+    // get profile
+    const { data } = await google.oauth2('v2').userinfo.get();
+    const { id, email, name, picture } = data;
     // set provider
     const googleProvider = {
       kind: 'google',
@@ -86,13 +83,16 @@ app.get('/google', async (req, res) => {
     });
     // end
     return res.redirect(
-      `${state}?${stringify({
-        email: user.email,
-        photoUrl: user.photoUrl,
-        draws: user.draws,
-        role: user.role,
-        accounts: filterAccounts,
-      })}`,
+      `${
+        referer +
+        stringify({
+          email: user.email,
+          photoUrl: user.photoUrl,
+          draws: user.draws,
+          role: user.role,
+          accounts: filterAccounts,
+        })
+      }`,
     );
   } catch (error) {
     return res.status(400).send({ success: false, message: error.message });

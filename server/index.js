@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
 import cookieParser from 'cookie-parser';
-import mongoConnect from './connection/mongoConnect';
+import connectMongoDB from './connection/connectMongoDB';
 import authenticateToken from './middleware/authenticateToken';
 import adminRouter from './routes/admin/index';
 import userRouter from './routes/user/index';
@@ -13,7 +13,7 @@ const corsOptions = {
   credentials: true,
 };
 
-mongoConnect();
+connectMongoDB();
 
 app.use(cors(corsOptions));
 app.use(bodyParser.urlencoded({ extended: false }));
