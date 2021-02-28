@@ -12,6 +12,7 @@
     "lint:style": "cross-env NODE_ENV=production stylelint --ignore-path .gitignore \"**/*.{css,scss,vue}\""
   },
   "dependencies": {
+    "@google-cloud/storage": "^5.8.0",
     "@nuxtjs/axios": "^5.12.5",
     "argon2": "^0.27.1",
     "axios": "^0.21.1",
@@ -32,7 +33,8 @@
     "nuxt": "^2.15.2",
     "nuxt-helmet": "^2.0.0",
     "path-to-regexp": "^6.2.0",
-    "qs": "^6.9.6"
+    "qs": "^6.9.6",
+    "uuid": "^8.3.2"
   },
   "devDependencies": {
     "@nuxtjs/eslint-module": "^3.0.2",

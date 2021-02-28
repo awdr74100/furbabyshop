@@ -8,7 +8,7 @@ export default async () => {
       useFindAndModify: false,
       useCreateIndex: true,
     });
-    console.log(`Connected DB: ${process.env.MONGODB_URL}`);
+    console.log(`🔥 MongoDB connected to ${process.env.MONGODB_URL}`);
   } catch (error) {
     console.log(error);
   }

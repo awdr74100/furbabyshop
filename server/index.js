@@ -5,6 +5,7 @@ import cookieParser from 'cookie-parser';
 import connectMongoDB from './connection/connectMongoDB';
 import authenticateToken from './middleware/authenticateToken';
 import adminRouter from './routes/admin/index';
+import adminUploadRouter from './routes/admin/upload';
 import userRouter from './routes/user/index';
 
 const app = express();
@@ -25,6 +26,7 @@ app.use(authenticateToken);
 
 // set custom router
 app.use('/admin', adminRouter);
+app.use('/admin/upload', adminUploadRouter);
 app.use('/user', userRouter);
 
 export default app;
