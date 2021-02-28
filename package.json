@@ -8,8 +8,8 @@
     "start": "nuxt start",
     "generate": "nuxt generate",
     "lint": "npm run lint:js && npm run lint:style",
-    "lint:js": "cross-env NODE_ENV=production eslint --ext .js,.vue --ignore-path .gitignore .",
-    "lint:style": "cross-env NODE_ENV=production stylelint **/*.{vue,css,scss} --ignore-path .gitignore"
+    "lint:js": "cross-env NODE_ENV=production eslint --ignore-path .gitignore \"**/*.{js,vue}\"",
+    "lint:style": "cross-env NODE_ENV=production stylelint --ignore-path .gitignore \"**/*.{css,scss,vue}\""
   },
   "dependencies": {
     "@nuxtjs/axios": "^5.12.5",
