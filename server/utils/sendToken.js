@@ -1,33 +1,21 @@
 import ms from 'ms';
 
-export const sendAccessToken = (res, accessToken) => {
+export const sendAccessToken = (res, accessToken, maxAge) => {
   return res.cookie('accessToken', accessToken, {
     httpOnly: true,
-    maxAge: ms('15m'),
+    maxAge: ms(maxAge),
     sameSite: 'strict',
     secure: !!process.env.ON_VERCEL,
     path: '/',
   });
 };
 
-export const sendRefreshToken = (res, refreshToken, role) => {
+export const sendRefreshToken = (res, refreshToken, maxAge, role) => {
   return res.cookie('refreshToken', refreshToken, {
     httpOnly: true,
-    maxAge: ms('4h'),
+    maxAge: ms(maxAge),
     sameSite: 'strict',
     secure: !!process.env.ON_VERCEL,
     path: `/api/${role}/refresh_token`,
   });
-};
-
-export const sendClearTokens = (res, role) => {
-  return res
-    .clearCookie('accessToken', {
-      sameSite: 'strict',
-      path: '/',
-    })
-    .clearCookie('refreshToken', {
-      sameSite: 'strict',
-      path: `/api/${role}/refresh_token`,
-    });
 };

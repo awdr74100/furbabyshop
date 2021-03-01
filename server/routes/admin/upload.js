@@ -32,7 +32,7 @@ router.post(
             );
         }),
       );
-      // end
+      // send response
       return res.send({ success: true, publicURLs });
     } catch (error) {
       if (error.name === 'ValidationError' && error.details)

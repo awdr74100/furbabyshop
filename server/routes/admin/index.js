@@ -1,19 +1,13 @@
 import express from 'express';
 import argon2 from 'argon2';
 import { verify } from 'jsonwebtoken';
-import { signUpValidate, signInValidate } from '../../utils/validate';
 import User from '../../models/User';
-import {
-  generateAccessToken,
-  generateRefreshToken,
-} from '../../utils/generateToken';
-import {
-  sendAccessToken,
-  sendRefreshToken,
-  sendClearTokens,
-} from '../../utils/sendToken';
+import { signUpValidate, signInValidate } from '../../utils/validate';
+import { createAccessToken, createRefreshToken } from '../../utils/createToken';
+import { sendAccessToken, sendRefreshToken } from '../../utils/sendToken';
 
 const router = express.Router();
+const hashOptions = { type: argon2.argon2id };
 
 /* Sign Up */
 router.post('/signup', async (req, res) => {
@@ -24,7 +18,7 @@ router.post('/signup', async (req, res) => {
     const prefix = username.slice(0, 1).toLocaleUpperCase();
     const photo = `https://fakeimg.pl/96x96/282828/fff/?text=${prefix}&font_size=48&font=noto`;
     // hash password
-    const hashPassword = await argon2.hash(password, { type: argon2.argon2id });
+    const hashPassword = await argon2.hash(password, hashOptions);
     // set user
     const user = new User({
       email,
@@ -35,7 +29,7 @@ router.post('/signup', async (req, res) => {
     });
     // save user
     await user.save();
-    // end
+    // send response
     return res.send({ success: true, message: '註冊成功' });
   } catch (error) {
     if (error.name === 'ValidationError' && error.details)
@@ -74,16 +68,16 @@ router.post('/signin', async (req, res) => {
     // verify password
     const verifyResult = await argon2.verify(customAccount.password, password);
     if (!verifyResult) throw new Error('custom/INVALID_PASSWORD');
-    // send tokens (access, refresh)
-    sendAccessToken(res, generateAccessToken(user, '15m'));
-    sendRefreshToken(res, generateRefreshToken(user, '4h'), user.role);
     // remove sensitive data
     const filterAccounts = user.accounts.map((account) => {
       const cache = account;
       delete cache.password;
       return cache;
     });
-    // end
+    // send access and refresh token (cookie)
+    sendAccessToken(res, createAccessToken(user, '15m'), '15m');
+    sendRefreshToken(res, createRefreshToken(user, '4h'), '4h', user.role);
+    // send response
     return res.send({
       success: true,
       user: {
@@ -116,25 +110,33 @@ router.post('/signout', async (req, res) => {
     // verify access token
     const { id, role } = verify(accessToken, process.env.ACCESS_TOKEN_SECRET);
     // check role
-    if (role !== 'admin') throw new Error('custom/INVALID_ROLE');
+    if (role !== 'admin') throw new Error();
     // find user
     const user = await User.findById(id).lean();
     // check user
-    if (!user) throw new Error('custom/ACCOUNT_HAS_BEEN_REVOKED');
+    if (!user) throw new Error();
     // update token version (for revoke refresh token)
     user.tokenVersion += 1;
     await User.updateOne(
       { _id: user._id },
       { tokenVersion: user.tokenVersion },
     );
-    // send tokens (clear)
-    sendClearTokens(res, 'admin');
-    // end
+    // clear cookies
+    res.clearCookie('accessToken', { sameSite: 'strict', path: '/' });
+    res.clearCookie('refreshToken', {
+      sameSite: 'strict',
+      path: `/api/admin/refresh_token`,
+    });
+    // send response
     return res.send({ success: true, message: '已登出' });
   } catch {
-    // send tokens (clear)
-    sendClearTokens(res, 'admin');
-    // end
+    // clear cookies
+    res.clearCookie('accessToken', { sameSite: 'strict', path: '/' });
+    res.clearCookie('refreshToken', {
+      sameSite: 'strict',
+      path: `/api/admin/refresh_token`,
+    });
+    // send response
     return res.send({ success: true, message: '已登出' });
   }
 });
@@ -164,16 +166,16 @@ router.post('/refresh_token', async (req, res) => {
       { _id: user._id },
       { tokenVersion: user.tokenVersion },
     );
-    // send tokens (access, refresh)
-    sendAccessToken(res, generateAccessToken(user, '15m'));
-    sendRefreshToken(res, generateRefreshToken(user, '4h'), user.role);
     // remove sensitive data
     const filterAccounts = user.accounts.map((account) => {
       const cache = account;
       delete cache.password;
       return cache;
     });
-    // end
+    // send access and refresh token (cookie)
+    sendAccessToken(res, createAccessToken(user, '15m'), '15m');
+    sendRefreshToken(res, createRefreshToken(user, '4h'), '4h', user.role);
+    // send response
     return res.send({
       success: true,
       user: {

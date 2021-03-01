@@ -2,10 +2,7 @@ import express from 'express';
 import { google } from 'googleapis';
 import { stringify } from 'qs';
 import User from './models/User';
-import {
-  generateAccessToken,
-  generateRefreshToken,
-} from './utils/generateToken';
+import { createAccessToken, createRefreshToken } from './utils/createToken';
 import { sendAccessToken, sendRefreshToken } from './utils/sendToken';
 
 const app = express();
@@ -26,6 +23,7 @@ app.get('/google', (req, res) => {
     scope: 'email profile',
     state: referer,
   });
+  // redirect url
   return res.redirect(url);
 });
 
@@ -72,16 +70,16 @@ app.get('/google/callback', async (req, res) => {
       );
       user.accounts = [...user.accounts, googleProvider];
     }
-    // send tokens (access, refresh)
-    sendAccessToken(res, generateAccessToken(user, '15m'));
-    sendRefreshToken(res, generateRefreshToken(user, '4h'), user.role);
     // remove sensitive data
     const filterAccounts = user.accounts.map((account) => {
       const cache = account;
       delete cache.password;
       return cache;
     });
-    // end
+    // send access and refresh token (cookie)
+    sendAccessToken(res, createAccessToken(user, '15m'), '15m');
+    sendRefreshToken(res, createRefreshToken(user, '4h'), '4h', user.role);
+    // redirect url
     return res.redirect(
       `${
         referer +

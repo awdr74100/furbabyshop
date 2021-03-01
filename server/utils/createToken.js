@@ -1,6 +1,6 @@
 import { sign } from 'jsonwebtoken';
 
-export const generateAccessToken = (payload, expiresIn) => {
+export const createAccessToken = (payload, expiresIn) => {
   return sign(
     {
       id: payload.id || payload._id.toString(),
@@ -11,7 +11,7 @@ export const generateAccessToken = (payload, expiresIn) => {
   );
 };
 
-export const generateRefreshToken = (payload, expiresIn) => {
+export const createRefreshToken = (payload, expiresIn) => {
   return sign(
     {
       id: payload.id || payload._id.toString(),
