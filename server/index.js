@@ -16,6 +16,8 @@ const corsOptions = {
 
 connectMongoDB();
 
+app.disable('x-powered-by');
+
 app.use(cors(corsOptions));
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
