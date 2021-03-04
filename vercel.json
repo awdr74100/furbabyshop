@@ -1,7 +1,7 @@
 {
   "version": 2,
   "env": {
-    "ON_VERCEL": "true"
+    "ON_CLOUD_SERVER": "true"
   },
   "builds": [
     {
