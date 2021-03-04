@@ -44,7 +44,7 @@ app.get('/google/callback', async (req, res) => {
     const googleProvider = {
       kind: 'google',
       uid: id,
-      photo: picture,
+      avatar: picture,
       displayName: name,
     };
     // find user
@@ -85,7 +85,6 @@ app.get('/google/callback', async (req, res) => {
         referer +
         stringify({
           email: user.email,
-          photoUrl: user.photoUrl,
           draws: user.draws,
           role: user.role,
           accounts: filterAccounts,

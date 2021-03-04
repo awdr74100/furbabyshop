@@ -1,5 +1,5 @@
 import multer from 'multer';
-import heicConvert from 'heic-convert';
+import convert from 'heic-convert';
 
 export const upload = multer({
   storage: multer.memoryStorage(),
@@ -11,16 +11,17 @@ export const upload = multer({
   limits: { fileSize: 1024 * 1024 }, // 1MB
 });
 
-export const convert = async (req, res, next) => {
+export const convertImage = async (req, res, next) => {
+  if (!req.files || !req.files.length) return next();
   try {
     const converted = await Promise.all(
       req.files.map((file) => {
         const rx = /\.(hei[cf])$/i;
         if (!rx.test(file.originalname)) return file;
-        return heicConvert({
+        return convert({
           buffer: file.buffer,
           format: 'JPEG',
-          quality: 0.9,
+          quality: 0.8,
         }).then((buffer) => {
           return {
             ...file,
@@ -49,7 +50,7 @@ export const errorHandling = (err, req, res, next) => {
     return res.send({ success: false, message: '超過圖片限制大小' });
   if (err.message === 'Unexpected field' && err.field === 'images')
     return res.send({ success: false, message: '超過圖片數量限制' });
-  if (err.message === 'Unexpected field' && err.field !== 'images')
-    return res.send({ success: false, message: '欄位名稱不正確' });
+  if (err.message === 'Unexpected field')
+    return res.send({ success: false, message: '欄位名稱輸入有誤' });
   return res.status(500).send({ success: false, message: err.message });
 };

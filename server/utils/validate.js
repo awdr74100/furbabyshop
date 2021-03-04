@@ -14,7 +14,3 @@ export const signInValidate = (body) => {
     password: Joi.string().alphanum().min(6).max(14).required(),
   }).validateAsync(body);
 };
-
-export const uploadValidate = (files) => {
-  return Joi.array().min(1).required().validateAsync(files);
-};

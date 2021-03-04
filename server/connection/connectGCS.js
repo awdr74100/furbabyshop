@@ -10,4 +10,4 @@ const storage = new Storage({
 
 const bucket = storage.bucket(process.env.GCS_BUCKET_NAME);
 
-export { storage, bucket };
+export default bucket;

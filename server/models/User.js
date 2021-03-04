@@ -3,50 +3,19 @@ import uniqueValidator from 'mongoose-unique-validator';
 
 const userSchema = new mongoose.Schema(
   {
-    email: {
-      type: String,
-      required: true,
-      unique: true,
-    },
-    draws: {
-      type: Number,
-      min: 0,
-      default: 0,
-    },
-    role: {
-      type: String,
-      enum: ['user', 'admin'],
-      default: 'user',
-    },
-    tokenVersion: {
-      type: Number,
-      min: 0,
-      default: 0,
-    },
+    email: { type: String, required: true, unique: true },
+    draws: { type: Number, min: 0, default: 0 },
+    role: { type: String, enum: ['user', 'admin'], default: 0 },
+    tokenVersion: { type: Number, min: 0, default: 0 },
     accounts: [
       {
         _id: false,
-        kind: {
-          type: String,
-          required: true,
-        },
-        uid: {
-          type: String,
-        },
-        displayName: {
-          type: String,
-        },
-        photo: {
-          type: String,
-          required: true,
-        },
-        username: {
-          type: String,
-          unique: true,
-        },
-        password: {
-          type: String,
-        },
+        kind: { type: String, required: true },
+        uid: { type: String },
+        displayName: { type: String },
+        avatar: { type: String, required: true },
+        username: { type: String, unique: true },
+        password: { type: String },
       },
     ],
   },

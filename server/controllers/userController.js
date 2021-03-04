@@ -1,57 +1,51 @@
-import express from 'express';
 import argon2 from 'argon2';
 import { verify } from 'jsonwebtoken';
-import User from '../../models/User';
-import { signUpValidate, signInValidate } from '../../utils/validate';
-import { createAccessToken, createRefreshToken } from '../../utils/createToken';
-import { sendAccessToken, sendRefreshToken } from '../../utils/sendToken';
+import User from '../models/User';
+import { signUpValidate, signInValidate } from '../utils/validate';
+import { createAccessToken, createRefreshToken } from '../utils/createToken';
+import { sendAccessToken, sendRefreshToken } from '../utils/sendToken';
 
-const router = express.Router();
-const hashOptions = { type: argon2.argon2id };
-
-/* Sign Up */
-router.post('/signup', async (req, res) => {
+export const signUp = async (req, res) => {
   try {
     // validate req.body
     const { username, email, password } = await signUpValidate(req.body);
-    // generate photo
+    // generate avatar
     const prefix = username.slice(0, 1).toLocaleUpperCase();
-    const photo = `https://fakeimg.pl/96x96/282828/fff/?text=${prefix}&font_size=48&font=noto`;
+    const avatar = `https://fakeimg.pl/96x96/282828/fff/?text=${prefix}&font_size=48&font=noto`;
     // hash password
-    const hashPassword = await argon2.hash(password, hashOptions);
+    const hashPassword = await argon2.hash(password, { type: argon2.argon2id });
     // set user
     const user = new User({
       email,
-      draws: 0,
-      role: 'admin',
+      draws: 3,
+      role: 'user',
       tokenVersion: 0,
-      accounts: [{ kind: 'custom', photo, username, password: hashPassword }],
+      accounts: [{ kind: 'custom', avatar, username, password: hashPassword }],
     });
     // save user
     await user.save();
-    // send response
+    // end
     return res.send({ success: true, message: '註冊成功' });
   } catch (error) {
     if (error.name === 'ValidationError' && error.details)
-      return res.status(400).send({ success: false, message: error.message }); // invalid field value
+      return res.status(400).send({ success: false, message: error.message });
     if (
       error.errors &&
       error.errors['accounts.0.username'] &&
       error.errors['accounts.0.username'].kind === 'unique'
     )
-      return res.send({ success: false, message: '用戶名已存在' }); // username already exist
+      return res.send({ success: false, message: '用戶名已存在' });
     if (
       error.errors &&
       error.errors.email &&
       error.errors.email.kind === 'unique'
     )
-      return res.send({ success: false, message: '信箱已被使用' }); // email already exist
-    return res.status(500).send({ success: false, message: error.message }); // unknown error
+      return res.send({ success: false, message: '信箱已被使用' });
+    return res.status(500).send({ success: false, message: error.message });
   }
-});
+};
 
-/* Sign In */
-router.post('/signin', async (req, res) => {
+export const signIn = async (req, res) => {
   try {
     // validate req.body
     const { usernameOrEmail, password } = await signInValidate(req.body);
@@ -61,7 +55,7 @@ router.post('/signin', async (req, res) => {
     // check user
     if (!user) throw new Error('custom/USER_NOT_FOUND');
     // check role
-    if (user.role !== 'admin') throw new Error('custom/INVALID_ROLE');
+    if (user.role !== 'user') throw new Error('custom/INVALID_ROLE');
     // check account
     const customAccount = user.accounts.find(({ kind }) => kind === 'custom');
     if (!customAccount) throw new Error('custom/ACCOUNT_NOT_FOUND');
@@ -77,12 +71,11 @@ router.post('/signin', async (req, res) => {
     // send access and refresh token (cookie)
     sendAccessToken(res, createAccessToken(user, '15m'), '15m');
     sendRefreshToken(res, createRefreshToken(user, '4h'), '4h', user.role);
-    // send response
+    // end
     return res.send({
       success: true,
       user: {
         email: user.email,
-        photoUrl: user.photoUrl,
         draws: user.draws,
         role: user.role,
         accounts: filterAccounts,
@@ -90,27 +83,28 @@ router.post('/signin', async (req, res) => {
     });
   } catch (error) {
     if (error.name === 'ValidationError' && error.details)
-      return res.status(400).send({ success: false, message: error.message }); // invalid field value
+      return res.status(400).send({ success: false, message: error.message });
     if (error.message === 'custom/USER_NOT_FOUND')
-      return res.send({ success: false, message: '帳號或密碼錯誤' }); // user not found
+      return res.send({ success: false, message: '帳號或密碼錯誤' });
     if (error.message === 'custom/INVALID_ROLE')
-      return res.send({ success: false, message: '帳號或密碼錯誤' }); // invalid role
+      return res.send({ success: false, message: '帳號或密碼錯誤' });
     if (error.message === 'custom/ACCOUNT_NOT_FOUND')
-      return res.send({ success: false, message: '帳號或密碼錯誤' }); // account not found
+      return res.send({ success: false, message: '帳號或密碼錯誤' });
     if (error.message === 'custom/INVALID_PASSWORD')
-      return res.send({ success: false, message: '帳號或密碼錯誤' }); // invalid password
-    return res.status(500).send({ success: false, message: error.message }); // unknown error
+      return res.send({ success: false, message: '帳號或密碼錯誤' });
+    return res.status(500).send({ success: false, message: error.message });
   }
-});
+};
 
-/* Sign Out */
-router.post('/signout', async (req, res) => {
-  const { accessToken } = req.cookies;
+export const signOut = async (req, res) => {
   try {
     // verify access token
-    const { id, role } = verify(accessToken, process.env.ACCESS_TOKEN_SECRET);
+    const { id, role } = verify(
+      req.cookies.accessToken,
+      process.env.ACCESS_TOKEN_SECRET,
+    );
     // check role
-    if (role !== 'admin') throw new Error();
+    if (role !== 'user') throw new Error();
     // find user
     const user = await User.findById(id).lean();
     // check user
@@ -125,33 +119,31 @@ router.post('/signout', async (req, res) => {
     res.clearCookie('accessToken', { sameSite: 'strict', path: '/' });
     res.clearCookie('refreshToken', {
       sameSite: 'strict',
-      path: `/api/admin/refresh_token`,
+      path: `/api/user/refresh_token`,
     });
-    // send response
+    // end
     return res.send({ success: true, message: '已登出' });
   } catch {
     // clear cookies
     res.clearCookie('accessToken', { sameSite: 'strict', path: '/' });
     res.clearCookie('refreshToken', {
       sameSite: 'strict',
-      path: `/api/admin/refresh_token`,
+      path: `/api/user/refresh_token`,
     });
-    // send response
+    // end
     return res.send({ success: true, message: '已登出' });
   }
-});
+};
 
-/* Refresh Token */
-router.post('/refresh_token', async (req, res) => {
-  const { refreshToken } = req.cookies;
+export const refreshToken = async (req, res) => {
   try {
     // verify refresh token
     const { id, role, tokenVersion } = verify(
-      refreshToken,
+      req.cookies.refreshToken,
       process.env.REFRESH_TOKEN_SECRET,
     );
     // check role
-    if (role !== 'admin') throw new Error('custom/INVALID_ROLE');
+    if (role !== 'user') throw new Error('custom/INVALID_ROLE');
     // find user
     const user = await User.findById(id).lean();
     // check user
@@ -175,12 +167,11 @@ router.post('/refresh_token', async (req, res) => {
     // send access and refresh token (cookie)
     sendAccessToken(res, createAccessToken(user, '15m'), '15m');
     sendRefreshToken(res, createRefreshToken(user, '4h'), '4h', user.role);
-    // send response
+    // end
     return res.send({
       success: true,
       user: {
         email: user.email,
-        photoUrl: user.photoUrl,
         draws: user.draws,
         role: user.role,
         accounts: filterAccounts,
@@ -188,25 +179,23 @@ router.post('/refresh_token', async (req, res) => {
     });
   } catch (error) {
     if (error.message === 'jwt must be provided')
-      return res.status(401).send({ success: false, message: '未攜帶令牌' }); // jwt must be provided
+      return res.status(401).send({ success: false, message: '未攜帶令牌' });
     if (error.message === 'invalid token')
-      return res.status(401).send({ success: false, message: '無效令牌' }); // invalid token
+      return res.status(401).send({ success: false, message: '無效令牌' });
     if (error.message === 'jwt malformed')
-      return res.status(401).send({ success: false, message: '格式錯誤' }); // jwt malformed
+      return res.status(401).send({ success: false, message: '格式錯誤' });
     if (error.message === 'jwt signature is required')
-      return res.status(401).send({ success: false, message: '需要簽名' }); // jwt signature is required
+      return res.status(401).send({ success: false, message: '需要簽名' });
     if (error.message === 'invalid signature')
-      return res.status(401).send({ success: false, message: '無效簽名' }); // invalid signature
+      return res.status(401).send({ success: false, message: '無效簽名' });
     if (error.message === 'jwt expired')
-      return res.status(401).send({ success: false, message: '令牌已過期' }); // jwt expired
+      return res.status(401).send({ success: false, message: '令牌已過期' });
     if (error.message === 'custom/INVALID_ROLE')
-      return res.status(403).send({ success: false, message: '權限不足' }); // invalid role
+      return res.status(403).send({ success: false, message: '權限不足' });
     if (error.message === 'custom/ACCOUNT_HAS_BEEN_REVOKED')
-      return res.status(403).send({ success: false, message: '帳號已註銷' }); // account has been revoked
+      return res.status(403).send({ success: false, message: '帳號已註銷' });
     if (error.message === 'custom/TOKEN_HAS_BEEN_REVOKED')
-      return res.status(403).send({ success: false, message: '令牌已註銷' }); // token has been revoked
-    return res.status(500).send({ success: false, message: error.message }); // unknown error
+      return res.status(403).send({ success: false, message: '令牌已註銷' });
+    return res.status(500).send({ success: false, message: error.message });
   }
-});
-
-export default router;
+};

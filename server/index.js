@@ -3,10 +3,7 @@ import cors from 'cors';
 import bodyParser from 'body-parser';
 import cookieParser from 'cookie-parser';
 import connectMongoDB from './connection/connectMongoDB';
-import authenticateToken from './middleware/authenticateToken';
-import adminRouter from './routes/admin/index';
-import adminUploadRouter from './routes/admin/upload';
-import userRouter from './routes/user/index';
+import routes from './routes/index';
 
 const app = express();
 const corsOptions = {
@@ -18,17 +15,13 @@ connectMongoDB();
 
 app.disable('x-powered-by');
 
+// set middleware
 app.use(cors(corsOptions));
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 app.use(cookieParser());
 
-// authenticate access token
-app.use(authenticateToken);
-
-// set custom router
-app.use('/admin', adminRouter);
-app.use('/admin/upload', adminUploadRouter);
-app.use('/user', userRouter);
+// set routes
+app.use('/', routes);
 
 export default app;
