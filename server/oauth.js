@@ -9,8 +9,8 @@ const app = express();
 
 /* Google Config */
 const GoogleOAuthClient = new google.auth.OAuth2(
-  process.env.GCP_CLIENT_ID,
-  process.env.GCP_CLIENT_SECRET,
+  process.env.GCP_OAUTH_CLIENT_ID,
+  process.env.GCP_OAUTH_CLIENT_SECRET,
   `${process.env.BASE_URL}/oauth/google/callback`,
 );
 google.options({ auth: GoogleOAuthClient });
